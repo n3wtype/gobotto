@@ -1,2 +1,2 @@
 # gobotto
-IRC bot written in golang, pure for fun project.
+Silly attempt to write simple IRC using golang.
