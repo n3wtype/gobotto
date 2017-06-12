@@ -9,24 +9,52 @@ type ircBot struct {
 	conn net.Conn
 	nick string
 	channel string
+	conn_params connParams
+}
+
+type connParams struct {
+	port string
+	server string
 }
 
 func NewIrcBot (server, port, channel, nick string) *ircBot {
 
-	conn, err := net.Dial ("tcp", fmt.Sprintf("%s:%s", server, port))
-	if err==nil{}
-	fmt.Fprintf (conn, fmt.Sprintf ("NICK %s\r\n", nick))
-	fmt.Fprintf (conn, fmt.Sprintf ("USER %s 8 *: %s\r\n", nick, nick))
-	fmt.Fprintf (conn, fmt.Sprintf ("JOIN %s\r\n", channel))
-	
-	return &ircBot{nick: nick, conn: conn, channel: channel}
+	cp := connParams {port: port, server: server}
+	i := ircBot {nick: nick, conn: nil, channel: channel, conn_params: cp }
+
+	i.reconnect()
+	i.ircSetNick(nick)
+	i.ircJoinChannel(channel)
+
+	return &i
 }
 
-func (i ircBot) Say(msg string) {
-	fmt.Fprintf (i.conn, fmt.Sprintf ("PRIVMSG %s :%s\r\n", i.channel, msg))
+func (self ircBot) Say(msg string) {
+	fmt.Fprintf (self.conn, fmt.Sprintf ("PRIVMSG %s :%s\r\n", self.channel, msg))
 }
 
-func (i ircBot) ReadLine () string {
+func (i *ircBot) reconnect() {
+
+	conn, err := net.Dial ("tcp", fmt.Sprintf("%s:%s", i.conn_params.server, i.conn_params.port))
+
+	if err == nil {}
+	i.conn = conn
+
+}
+
+func (i ircBot) ircSetNick (nick string) {
+
+	i.nick = nick
+
+	fmt.Fprintf (i.conn, fmt.Sprintf ("NICK %s\r\n", i.nick))
+	fmt.Fprintf (i.conn, fmt.Sprintf ("USER %s 8 *: %s\r\n", i.nick, i.nick))
+}
+
+func (i ircBot) ircJoinChannel (channel string) {
+	fmt.Fprintf (i.conn, fmt.Sprintf ("JOIN %s\r\n", channel))
+}
+
+func (i *ircBot) ReadLine () string {
 	line, err := bufio.NewReader(i.conn).ReadString('\n')
 	if err==nil {}
 	return line
