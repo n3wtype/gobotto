@@ -4,6 +4,10 @@ import "os"
 import "fmt"
 import "net"
 import "bufio"
+import "bytes"
+import "./irc"
+
+const msg_buf_size = 10240
 
 type ircBot struct {
 	conn net.Conn
@@ -12,19 +16,30 @@ type ircBot struct {
 	conn_params connParams
 }
 
+type ircMsg struct {
+	prefix string
+	command string
+	params []string
+}
+
+type ircMsgBroker struct {
+
+}
+
 type connParams struct {
 	port string
 	server string
+}
+
+func parseMessage (line string) *ircMsg {
+
+	return nil
 }
 
 func NewIrcBot (server, port, channel, nick string) *ircBot {
 
 	cp := connParams {port: port, server: server}
 	i := ircBot {nick: nick, conn: nil, channel: channel, conn_params: cp }
-
-	i.reconnect()
-	i.ircSetNick(nick)
-	i.ircJoinChannel(channel)
 
 	return &i
 }
@@ -54,10 +69,39 @@ func (i ircBot) ircJoinChannel (channel string) {
 	fmt.Fprintf (i.conn, fmt.Sprintf ("JOIN %s\r\n", channel))
 }
 
-func (i *ircBot) ReadLine () string {
-	line, err := bufio.NewReader(i.conn).ReadString('\n')
-	if err==nil {}
-	return line
+func splitCRLF (data []byte, atEOF bool) (advance int, token []byte, err error){ 
+	if atEOF && len (data) == 0{
+		return 0, nil, nil
+	}
+
+	if i := bytes.Index(data, []byte{'\r','\n'}); i >= 0 {
+		return i + 2, data[0:i], nil
+	}
+
+	if atEOF {
+            return len(data), data, nil
+    }
+
+	return 0, nil, nil
+}
+
+func (i *ircBot) ReadLine (done chan bool) {
+	rd := bufio.NewReaderSize(i.conn, msg_buf_size)
+	sc := bufio.NewScanner(rd)
+	sc.Split(splitCRLF)
+
+	for sc.Scan() {
+			fmt.Println(sc.Text())
+	}
+
+}
+
+
+func (i *ircBot) run (done chan bool) {
+	i.reconnect()
+	i.ircSetNick(i.nick)
+	i.ircJoinChannel(i.channel)
+	i.ReadLine(done)
 }
 
 func main() {
@@ -65,16 +109,17 @@ func main() {
 	server := GetParamValue("--server")
 	channel := GetParamValue("--channel")
 	port := GetParamValue("--port")
-	 
+
 	fmt.Printf (fmt.Sprintf ("DEBUG (nick: %s. server: %s, channel: %s, port: %s\r\n", 
- 		nick, server, channel, port ))
+		nick, server, channel, port ))
 	fmt.Println ("")
 
 	bot := NewIrcBot (server, port, channel, nick)
-	//bot.Say("test")
-	for true {
-		fmt.Print(bot.ReadLine())
-	}
+
+	done := make (chan bool,1)
+	go bot.run(done)
+
+	<-done
 
  }
 
